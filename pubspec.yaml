@@ -2,7 +2,7 @@ name: data_go_kr
 description: >-
   Unofficial client for Korean public data portal (data.go.kr) open APIs:
   service key encoding, JSON and XML parsing, typed errors, and paging.
-version: 0.0.1
+version: 0.0.2
 homepage: https://seungpyo.online
 repository: https://github.com/Seungpyo1007/data_go_kr
 issue_tracker: https://github.com/Seungpyo1007/data_go_kr/issues

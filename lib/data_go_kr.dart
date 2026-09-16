@@ -3,5 +3,6 @@
 library;
 
 export 'src/client.dart';
+export 'src/kma_forecast.dart';
 export 'src/kma_grid.dart';
 export 'src/response.dart';

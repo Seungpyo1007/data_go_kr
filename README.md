@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Seungpyo1007/data_go_kr/main/assets/data_go_kr-logo.png" alt="data_go_kr logo: a data store with an arrow leaving it" width="128">
+</p>
+
 <h1 align="center">data_go_kr</h1>
 
 <p align="center">
@@ -45,6 +49,8 @@ client.close();
   still an exception.
 - **Paging.** `paginate` follows `totalCount` and yields every row.
 - **No data is not an error.** `resultCode` `03` returns an empty page.
+- **KMA grid cells.** `KmaGrid` converts a latitude and longitude to the
+  `nx`/`ny` cell that weather services ask for.
 
 ## Platform support
 
@@ -107,6 +113,30 @@ try {
 | `http_error` | The request did not reach the service |
 | `timeout` | The service did not answer in time |
 | `invalid_response` | The answer was not usable JSON or XML |
+
+### Weather grid cells
+
+KMA forecast services take a grid cell, not a coordinate. The country is
+covered by 5 km cells on a Lambert conformal conic projection, 149 columns by
+253 rows.
+
+```dart
+final cell = KmaGrid.fromLatLon(37.5665, 126.9780); // Seoul City Hall
+print('${cell.nx} ${cell.ny}');  // 60 127
+print(cell.isInKorea);           // true
+
+final center = cell.toLatLon();  // (lat: 37.5799, lon: 126.9894)
+
+await client.get(
+  'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst',
+  query: {
+    'base_date': '20260916',
+    'base_time': '0500',
+    'nx': cell.nx,
+    'ny': cell.ny,
+  },
+);
+```
 
 ## Limitations
 

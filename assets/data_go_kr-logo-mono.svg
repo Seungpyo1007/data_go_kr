@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">data_go_kr monochrome logo</title>
+  <desc id="desc">A single-color outlined data store with an arrow leaving it.</desc>
+
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M146 152v148c0 22 49 40 110 40s110-18 110-40V152z" stroke-width="18"/>
+    <ellipse cx="256" cy="152" rx="110" ry="40" stroke-width="18"/>
+    <path d="M146 206c0 22 49 40 110 40s110-18 110-40" stroke-width="14"/>
+    <path d="M146 254c0 22 49 40 110 40s110-18 110-40" stroke-width="14"/>
+    <path d="M170 392h150" stroke-width="20"/>
+    <path d="M296 362l42 30-42 30" stroke-width="20"/>
+  </g>
+</svg>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">data_go_kr logo</title>
+  <desc id="desc">A teal rounded square containing a cream data store with an arrow leaving it.</desc>
+
+  <rect x="12" y="12" width="488" height="488" rx="126" fill="#0F9D8C"/>
+
+  <!-- Data store -->
+  <g fill="#FFF9F3" stroke="#08453E" stroke-width="10" stroke-linejoin="round">
+    <path d="M146 152v148c0 22 49 40 110 40s110-18 110-40V152z"/>
+    <ellipse cx="256" cy="152" rx="110" ry="40"/>
+  </g>
+  <g fill="none" stroke="#08453E" stroke-width="10" stroke-linecap="round">
+    <path d="M146 206c0 22 49 40 110 40s110-18 110-40"/>
+    <path d="M146 254c0 22 49 40 110 40s110-18 110-40"/>
+  </g>
+
+  <!-- Data leaving the store, open to everyone -->
+  <path d="M170 392h150" fill="none" stroke="#08453E" stroke-width="20"
+        stroke-linecap="round"/>
+  <path d="M296 362l42 30-42 30" fill="none" stroke="#08453E" stroke-width="20"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

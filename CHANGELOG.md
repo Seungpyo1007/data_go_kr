@@ -10,3 +10,5 @@
   `invalid_parameter`, `unknown_service`, `service_error`, `http_error`,
   `timeout`, and `invalid_response`, covering the portal's XML and JSON error
   envelopes as well as the `api.odcloud.kr` shape.
+* `KmaGrid` converts a latitude and longitude to the weather forecast grid
+  cell (`nx`, `ny`) that KMA services require, and back to the cell center.

@@ -51,6 +51,9 @@ client.close();
 - **No data is not an error.** `resultCode` `03` returns an empty page.
 - **KMA grid cells.** `KmaGrid` converts a latitude and longitude to the
   `nx`/`ny` cell that weather services ask for.
+- **KMA publish times.** `KmaBaseTime.latest` picks a `base_date` and
+  `base_time` the service has actually published, and `KmaSky`,
+  `KmaPrecipitation`, and `kmaCategory` turn the codes into readable values.
 
 ## Platform support
 
@@ -126,16 +129,40 @@ print('${cell.nx} ${cell.ny}');  // 60 127
 print(cell.isInKorea);           // true
 
 final center = cell.toLatLon();  // (lat: 37.5799, lon: 126.9894)
+```
 
-await client.get(
+### Publish times and codes
+
+A KMA service rejects a `base_time` it has not published yet, and each service
+has its own schedule: the village forecast publishes at 02, 05, 08, 11, 14, 17,
+20, and 23, ten minutes after each slot; the nowcast every hour at 40 minutes
+past; the ultra short forecast every hour at 45 minutes past. `KmaBaseTime`
+picks the newest published slot, in Korea Standard Time whatever the device
+time zone is.
+
+```dart
+final base = KmaBaseTime.latest(KmaService.village);
+
+final forecast = await client.get(
   'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst',
   query: {
-    'base_date': '20260916',
-    'base_time': '0500',
+    'base_date': base.date,  // 20260916
+    'base_time': base.time,  // 0500
     'nx': cell.nx,
     'ny': cell.ny,
   },
 );
+
+for (final row in forecast.items) {
+  final category = '${row['category']}';
+  final value = '${row['fcstValue']}';
+  print(switch (category) {
+    'SKY' => '하늘: ${KmaSky.fromCode(value)?.label}',
+    'PTY' => '강수: ${KmaPrecipitation.fromCode(value)?.label}',
+    _ => '${kmaCategory(category)?.label ?? category}: '
+        '$value${kmaCategory(category)?.unit ?? ''}',
+  });
+}
 ```
 
 ## Limitations

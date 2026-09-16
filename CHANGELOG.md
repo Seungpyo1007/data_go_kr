@@ -1,3 +1,16 @@
+## 0.0.2
+
+* Add `KmaBaseTime.latest`, which returns the newest `base_date` and
+  `base_time` a KMA service has published. Each service has its own schedule:
+  the village forecast publishes eight times a day ten minutes after each slot,
+  the nowcast every hour at 40 minutes past, and the ultra short forecast every
+  hour at 45 minutes past. Times are computed in Korea Standard Time whatever
+  the device time zone is.
+* Add `KmaSky` and `KmaPrecipitation` for the `SKY` and `PTY` codes, including
+  the codes only the ultra short forecast uses.
+* Add `kmaCategory`, which describes category codes such as `TMP` and `POP`
+  with their Korean label and unit.
+
 ## 0.0.1
 
 * Initial release.

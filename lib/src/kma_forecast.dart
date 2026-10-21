@@ -36,18 +36,55 @@ class KmaBaseTime {
   /// first: pass `DateTime.now()`, a UTC time, or a local time of the device.
   /// A `DateTime(...)` built from Korean wall-clock values on a device in
   /// another time zone names a different instant and gives a different slot.
-  factory KmaBaseTime.latest(KmaService service, {DateTime? now}) {
+  ///
+  /// [delay] is how long after its slot a service is assumed to publish:
+  /// ten minutes for the village forecast and the nowcast, 45 for the ultra
+  /// short forecast, from the KMA guide. Pass a longer one to stay clear of
+  /// the edge, where a service sometimes publishes a minute or two late.
+  factory KmaBaseTime.latest(
+    KmaService service, {
+    DateTime? now,
+    Duration? delay,
+  }) {
     // KST is UTC+9 all year; Korea observes no daylight saving time.
     final kst = (now ?? DateTime.now()).toUtc().add(const Duration(hours: 9));
 
     // Delays from the KMA guide (기상청41_단기예보 조회서비스 오픈API
-    // 활용가이드, 2026-10): the nowcast is called ten minutes past the hour,
-    // the ultra short forecast 45 minutes past.
+    // 활용가이드, 2026-10): the village forecast and the nowcast are called
+    // ten minutes after their slot, the ultra short forecast 45 minutes after
+    // the hour.
+    final minutes = delay?.inMinutes;
     return switch (service) {
-      KmaService.village => _village(kst),
-      KmaService.ultraShortNowcast => _hourly(kst, delay: 10, at: 0),
-      KmaService.ultraShortForecast => _hourly(kst, delay: 45, at: 30),
+      KmaService.village => _village(kst, delay: minutes ?? 10),
+      KmaService.ultraShortNowcast => _hourly(kst, delay: minutes ?? 10, at: 0),
+      KmaService.ultraShortForecast => _hourly(
+        kst,
+        delay: minutes ?? 45,
+        at: 30,
+      ),
     };
+  }
+
+  /// The slot published before this one: three hours earlier for the
+  /// village forecast, one hour for the others.
+  ///
+  /// Use it when a service answers "no data" (`03`) for the newest slot,
+  /// which happens when it publishes late.
+  KmaBaseTime previous(KmaService service) {
+    final slot = DateTime.utc(
+      int.parse(date.substring(0, 4)),
+      int.parse(date.substring(4, 6)),
+      int.parse(date.substring(6, 8)),
+      int.parse(time.substring(0, 2)),
+      int.parse(time.substring(2, 4)),
+    );
+    final earlier = slot.subtract(
+      Duration(hours: service == KmaService.village ? 3 : 1),
+    );
+    return KmaBaseTime(
+      _date(earlier),
+      '${_two(earlier.hour)}${_two(earlier.minute)}',
+    );
   }
 
   /// `yyyyMMdd` in Korea Standard Time.
@@ -56,18 +93,22 @@ class KmaBaseTime {
   /// `HHmm` in Korea Standard Time.
   final String time;
 
-  /// The eight daily slots of the village forecast, published ten minutes
-  /// after each slot.
-  static KmaBaseTime _village(DateTime kst) {
-    final minutes = kst.hour * 60 + kst.minute;
+  /// The eight daily slots of the village forecast, published [delay]
+  /// minutes after each slot.
+  static KmaBaseTime _village(DateTime kst, {required int delay}) {
+    // Step back by the delay, then take the slot that time falls in.
+    final published = kst.subtract(Duration(minutes: delay));
     const slots = [2, 5, 8, 11, 14, 17, 20, 23];
     for (final hour in slots.reversed) {
-      if (minutes >= hour * 60 + 10) {
-        return KmaBaseTime(_date(kst), '${_two(hour)}00');
+      if (published.hour >= hour) {
+        return KmaBaseTime(_date(published), '${_two(hour)}00');
       }
     }
-    // Before 02:10 the newest slot is yesterday's 23:00.
-    return KmaBaseTime(_date(kst.subtract(const Duration(days: 1))), '2300');
+    // Before the 02:00 slot is out, the newest one is yesterday's 23:00.
+    return KmaBaseTime(
+      _date(published.subtract(const Duration(days: 1))),
+      '2300',
+    );
   }
 
   /// Hourly slots at [at] minutes past the hour, published [delay] minutes
@@ -77,9 +118,9 @@ class KmaBaseTime {
     required int delay,
     required int at,
   }) {
-    final published = kst.minute >= delay
-        ? kst
-        : kst.subtract(const Duration(hours: 1));
+    // Step back by the delay: the hour that time falls in is the newest one
+    // published. Delays of an hour or more work the same way.
+    final published = kst.subtract(Duration(minutes: delay));
     return KmaBaseTime(_date(published), '${_two(published.hour)}${_two(at)}');
   }
 

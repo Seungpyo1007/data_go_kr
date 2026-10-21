@@ -120,6 +120,14 @@ DataGoKrResponse _parseJson(String text, String body, int? statusCode) {
     _throwPortalError(_string(json['code']), json['msg'] as String, statusCode);
   }
 
+  // Some api.odcloud.kr services, such as the National Tax Service lookups,
+  // answer {"status_code": "OK", "data": [...]} and fail with another
+  // status_code, such as TOO_LARGE_REQUEST.
+  final status = json['status_code'];
+  if (status is String && status.toUpperCase() != 'OK') {
+    _throwPortalError(status, null, statusCode);
+  }
+
   // api.odcloud.kr answers normally as {"data": [...], "totalCount": 41, ...}.
   final data = json['data'];
   if (data is List) {

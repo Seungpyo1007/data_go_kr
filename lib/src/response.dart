@@ -74,7 +74,9 @@ class DataGoKrException implements Exception {
 /// Portal codes: `20`–`33` key problems, `22` quota, `10`/`11` parameters,
 /// `12` no such service, `05` the service timed out, `04` an HTTP error
 /// between the gateway and the service. `api.odcloud.kr` sends negative
-/// codes: `-3` no such service, `-4` and `-401` a missing or unknown key.
+/// codes: `-3` no such service, `-4` and `-401` a missing or unknown key; its
+/// National Tax Service lookups send a `status_code` such as
+/// `TOO_LARGE_REQUEST` instead.
 String errorCodeFor(String? reasonCode) => switch (reasonCode) {
   '20' ||
   '21' ||
@@ -87,6 +89,9 @@ String errorCodeFor(String? reasonCode) => switch (reasonCode) {
   '22' => 'rate_limit',
   '10' || '11' => 'invalid_parameter',
   '12' || '-3' => 'unknown_service',
+  'BAD_JSON_REQUEST' ||
+  'REQUEST_DATA_MALFORMED' ||
+  'TOO_LARGE_REQUEST' => 'invalid_parameter',
   '05' || '5' => 'timeout',
   '04' || '4' => 'http_error',
   _ => 'service_error',

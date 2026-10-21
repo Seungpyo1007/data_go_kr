@@ -1,3 +1,37 @@
+## 0.1.0
+
+* `KmaForecast.fromItems` groups the rows of the village forecast, the ultra
+  short forecast, and the nowcast into `KmaForecastHour`s with typed values,
+  and `TMN`/`TMX` into `KmaForecastDay`s. It follows KMA's October 2026 guide:
+  the five-day village forecast's last day sends `PCP`, `SNO`, and `WSD` as
+  qualitative codes (`KmaIntensity`), `+900` and above or `-900` and below
+  mean missing, and the ultra short forecast sends `POP`.
+* `KmaAmount.parse` reads precipitation, snow, and wind classes such as
+  `1mm 미만`, `30.0~50.0mm`, `50.0mm 이상`, and `강수없음`.
+* `KmaCompass.fromDegrees` turns `VEC` into one of 16 compass points with the
+  guide's formula.
+* `KmaBaseTime.latest` takes a `delay` to stay clear of late publishing, and
+  `KmaBaseTime.previous` steps back one slot for a "no data" answer.
+* `DataGoKrClient.post` sends a JSON body, for services such as the National
+  Tax Service lookups on `api.odcloud.kr`. Their `status_code` errors, such as
+  `TOO_LARGE_REQUEST`, map to `invalid_parameter`.
+* `RetryPolicy` retries dropped connections, timeouts, HTTP 5xx, the portal's
+  `05`, and HTTP 429 with exponential backoff: two retries from
+  250 ms by default. Pass `retry: RetryPolicy.none` to the client to fail at
+  once. The portal's `22`, a used-up daily quota, is not retried. POST
+  requests are retried only when marked `idempotent`.
+* A request still running at `timeout` is aborted through `package:http`'s
+  `Abortable` requests instead of being left open.
+* `KoreanHolidays` reads public holidays, national days, anniversaries, solar
+  terms, and sundry days from the special day service (한국천문연구원 특일
+  정보), with `isRestDay`.
+* `AirKorea` reads real-time air quality by station or province (한국환경공단
+  에어코리아 대기오염정보) into `AirQualityMeasurement`s with
+  `AirQualityGrade`s.
+* `BusinessStatusService` checks business registration numbers with the
+  National Tax Service (국세청 사업자등록정보 상태조회), 100 per request, and
+  `isValidNumber` checks the checksum offline.
+
 ## 0.0.3
 
 * Fix `paginate` repeating the first page on `api.odcloud.kr`, which pages with

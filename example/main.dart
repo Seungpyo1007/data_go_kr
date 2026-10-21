@@ -5,6 +5,8 @@ import 'package:data_go_kr/data_go_kr.dart';
 /// Reads the newest short-term forecast for Seoul City Hall:
 ///
 ///     DATA_GO_KR_KEY=<decoded key> dart run example/main.dart
+///
+/// The key must be approved for 기상청_단기예보 조회서비스 on data.go.kr.
 Future<void> main() async {
   final key = Platform.environment['DATA_GO_KR_KEY'];
   if (key == null || key.isEmpty) {
@@ -13,12 +15,12 @@ Future<void> main() async {
   }
 
   final cell = KmaGrid.fromLatLon(37.5665, 126.9780); // Seoul City Hall
-  final base = KmaBaseTime.latest(KmaService.village);
+  var base = KmaBaseTime.latest(KmaService.village);
   print('grid ${cell.nx},${cell.ny} | base ${base.date} ${base.time}');
 
   final client = DataGoKrClient(serviceKey: key);
   try {
-    final forecast = await client.get(
+    Future<DataGoKrResponse> read(KmaBaseTime base) => client.get(
       'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst',
       query: {
         'base_date': base.date,
@@ -26,25 +28,28 @@ Future<void> main() async {
         'nx': cell.nx,
         'ny': cell.ny,
       },
-      rows: 8,
+      rows: 1000,
     );
 
-    print(
-      '${forecast.totalCount} rows total, showing ${forecast.items.length}',
-    );
-    for (final row in forecast.items) {
-      final category = '${row['category']}';
-      final value = '${row['fcstValue']}';
-      final reading = switch (category) {
-        'SKY' => '하늘상태: ${KmaSky.fromCode(value)?.label ?? value}',
-        'PTY' => '강수형태: ${KmaPrecipitation.fromCode(value)?.label ?? value}',
-        // PCP and SNO already carry their unit, as in "1mm 미만" or
-        // "강수없음"; only plain numbers get one appended.
-        _ =>
-          '${kmaCategory(category)?.label ?? category}: $value'
-              '${double.tryParse(value) == null ? '' : kmaCategory(category)?.unit ?? ''}',
-      };
-      print('  ${row['fcstTime']}  $reading');
+    var page = await read(base);
+    if (page.isEmpty) {
+      // Published late: use the slot before.
+      base = base.previous(KmaService.village);
+      page = await read(base);
+    }
+
+    final forecast = KmaForecast.fromItems(page.items);
+    for (final day in forecast.days) {
+      print('${day.date}  최저 ${day.low ?? '-'}℃  최고 ${day.high ?? '-'}℃');
+    }
+    for (final hour in forecast.hours.take(12)) {
+      print(
+        '${hour.date} ${hour.hourText}  '
+        '${hour.temperature}℃  ${hour.sky?.label ?? '-'}  '
+        '강수 ${hour.precipitationProbability ?? '-'}% '
+        '${_describe(hour.precipitation)}  '
+        '바람 ${hour.compass?.label ?? '-'} ${_describe(hour.windSpeed)}',
+      );
     }
   } on DataGoKrException catch (error) {
     print('${error.code}: $error');
@@ -52,3 +57,13 @@ Future<void> main() async {
     client.close();
   }
 }
+
+/// `강수없음`-style values stay quiet; codes of the extended range show their
+/// class; everything else shows as KMA sent it.
+String _describe(KmaAmount? amount) => switch (amount) {
+  null || KmaAmount(isNone: true) => '',
+  KmaAmount(:final intensity?) => intensity.label,
+  KmaAmount(kind: KmaAmountKind.exact, :final value, :final unit) =>
+    '$value$unit',
+  KmaAmount(:final raw) => raw,
+};

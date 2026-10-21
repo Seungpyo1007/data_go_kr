@@ -70,12 +70,35 @@ class DataGoKrException implements Exception {
 ///
 /// The portal sends these as `returnReasonCode` in its error envelopes and as
 /// `resultCode` in normal envelopes.
+///
+/// Portal codes: `20`–`33` key problems, `22` quota, `10`/`11` parameters,
+/// `12` no such service, `05` the service timed out, `04` an HTTP error
+/// between the gateway and the service. `api.odcloud.kr` sends negative
+/// codes: `-3` no such service, `-4` and `-401` a missing or unknown key.
 String errorCodeFor(String? reasonCode) => switch (reasonCode) {
-  '20' || '30' || '31' || '32' || '33' || '-4' => 'unauthorized_key',
+  '20' ||
+  '21' ||
+  '30' ||
+  '31' ||
+  '32' ||
+  '33' ||
+  '-4' ||
+  '-401' => 'unauthorized_key',
   '22' => 'rate_limit',
   '10' || '11' => 'invalid_parameter',
-  '12' => 'unknown_service',
+  '12' || '-3' => 'unknown_service',
+  '05' || '5' => 'timeout',
+  '04' || '4' => 'http_error',
   _ => 'service_error',
+};
+
+/// Maps a failing HTTP status to a [DataGoKrException.code], for answers
+/// whose body says nothing usable. Returns `null` for success statuses.
+String? errorCodeForStatus(int? statusCode) => switch (statusCode) {
+  null || < 300 => null,
+  401 || 403 => 'unauthorized_key',
+  429 => 'rate_limit',
+  _ => 'http_error',
 };
 
 /// Whether a code means "the query matched nothing", which this package

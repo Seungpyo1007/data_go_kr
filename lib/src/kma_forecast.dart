@@ -32,17 +32,21 @@ class KmaBaseTime {
 
   /// Newest slot the service has published, in Korea Standard Time.
   ///
-  /// [now] defaults to the current time and may be in any time zone; it is
-  /// converted to KST first.
+  /// [now] defaults to the current time. It is an instant, converted to KST
+  /// first: pass `DateTime.now()`, a UTC time, or a local time of the device.
+  /// A `DateTime(...)` built from Korean wall-clock values on a device in
+  /// another time zone names a different instant and gives a different slot.
   factory KmaBaseTime.latest(KmaService service, {DateTime? now}) {
     // KST is UTC+9 all year; Korea observes no daylight saving time.
     final kst = (now ?? DateTime.now()).toUtc().add(const Duration(hours: 9));
-    final minutes = kst.hour * 60 + kst.minute;
 
+    // Delays from the KMA guide (기상청41_단기예보 조회서비스 오픈API
+    // 활용가이드, 2026-10): the nowcast is called ten minutes past the hour,
+    // the ultra short forecast 45 minutes past.
     return switch (service) {
-      KmaService.village => _village(kst, minutes),
-      KmaService.ultraShortNowcast => _hourly(kst, minutes, delay: 40, at: 0),
-      KmaService.ultraShortForecast => _hourly(kst, minutes, delay: 45, at: 30),
+      KmaService.village => _village(kst),
+      KmaService.ultraShortNowcast => _hourly(kst, delay: 10, at: 0),
+      KmaService.ultraShortForecast => _hourly(kst, delay: 45, at: 30),
     };
   }
 
@@ -54,7 +58,8 @@ class KmaBaseTime {
 
   /// The eight daily slots of the village forecast, published ten minutes
   /// after each slot.
-  static KmaBaseTime _village(DateTime kst, int minutes) {
+  static KmaBaseTime _village(DateTime kst) {
+    final minutes = kst.hour * 60 + kst.minute;
     const slots = [2, 5, 8, 11, 14, 17, 20, 23];
     for (final hour in slots.reversed) {
       if (minutes >= hour * 60 + 10) {
@@ -68,8 +73,7 @@ class KmaBaseTime {
   /// Hourly slots at [at] minutes past the hour, published [delay] minutes
   /// after the hour.
   static KmaBaseTime _hourly(
-    DateTime kst,
-    int minutes, {
+    DateTime kst, {
     required int delay,
     required int at,
   }) {
@@ -125,8 +129,8 @@ enum KmaSky {
 
 /// Precipitation form, the `PTY` category.
 ///
-/// The village forecast uses `0` to `4`; the ultra short forecast adds `5` to
-/// `7`, so both are listed here.
+/// The village forecast uses `0` to `4`; the ultra short nowcast and forecast
+/// use `0` to `7`, so all are listed here. [fromCode] reads either.
 enum KmaPrecipitation {
   /// `0`, 없음.
   none('0', '없음'),

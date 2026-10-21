@@ -47,7 +47,9 @@ client.close();
   `{"code": -4, "msg": "..."}` used by `api.odcloud.kr`.
 - **Errors sent with HTTP 200.** The body is parsed first, so a failure is
   still an exception.
-- **Paging.** `paginate` follows `totalCount` and yields every row.
+- **Paging.** `paginate` follows `totalCount` and yields every row, using
+  `pageNo`/`numOfRows` on `apis.data.go.kr` and `page`/`perPage` on
+  `api.odcloud.kr`.
 - **No data is not an error.** `resultCode` `03` returns an empty page.
 - **KMA grid cells.** `KmaGrid` converts a latitude and longitude to the
   `nx`/`ny` cell that weather services ask for.
@@ -58,19 +60,26 @@ client.close();
 ## Platform support
 
 Pure Dart on top of `package:http` and `package:xml`: Dart VM, Flutter on
-Android, iOS, Windows, macOS, Linux, and the web. The portal sends CORS
-headers, so browser calls work — but a key in a web build is visible to anyone,
-so put it behind your own backend for public sites.
+Android, iOS, Windows, macOS, Linux, and the web.
+
+In a browser, CORS decides what works. `api.odcloud.kr` sends
+`Access-Control-Allow-Origin: *`. `apis.data.go.kr` answers CORS preflight
+requests, but its error answers, such as an unregistered key, come without
+CORS headers, so the browser hides them and they surface as `http_error`
+without the portal's message. A key in a web build is also visible to anyone:
+put it behind your own backend for public sites.
 
 ## Installation
 
 ```yaml
 dependencies:
-  data_go_kr: ^0.0.1
+  data_go_kr: ^0.0.3
 ```
 
 Get a service key from [data.go.kr](https://www.data.go.kr) by applying for the
-service you want, then use the **decoded** key.
+service you want, then use the **decoded** key. Pass it only to
+`DataGoKrClient`: a `serviceKey` in the endpoint or `query` throws an
+`ArgumentError`, since the request would carry two keys.
 
 ## Usage
 
@@ -108,14 +117,19 @@ try {
 
 | Code | Meaning |
 | --- | --- |
-| `unauthorized_key` | Key unknown, expired, blocked, or IP not registered |
+| `unauthorized_key` | Key unknown, expired, suspended, missing, or IP not registered |
 | `rate_limit` | Request quota exceeded |
 | `invalid_parameter` | Missing or invalid request parameter |
 | `unknown_service` | No such service for that endpoint |
 | `service_error` | The service reported an internal failure |
-| `http_error` | The request did not reach the service |
-| `timeout` | The service did not answer in time |
+| `http_error` | The connection failed, or the server answered with an HTTP error and no readable body |
+| `timeout` | The request, or the service behind the gateway, did not answer in time |
 | `invalid_response` | The answer was not usable JSON or XML |
+
+The message holds the portal's own reason, for example
+`SERVICE_KEY_IS_NOT_REGISTERED_ERROR (등록되지 않은 서비스키)`. When the body
+says nothing usable, the HTTP status decides the code: 401 and 403 are
+`unauthorized_key`, 429 is `rate_limit`, and other failures `http_error`.
 
 ### Weather grid cells
 
@@ -135,10 +149,13 @@ final center = cell.toLatLon();  // (lat: 37.5799, lon: 126.9894)
 
 A KMA service rejects a `base_time` it has not published yet, and each service
 has its own schedule: the village forecast publishes at 02, 05, 08, 11, 14, 17,
-20, and 23, ten minutes after each slot; the nowcast every hour at 40 minutes
-past; the ultra short forecast every hour at 45 minutes past. `KmaBaseTime`
-picks the newest published slot, in Korea Standard Time whatever the device
-time zone is.
+20, and 23, ten minutes after each slot; the nowcast every hour, ten minutes
+past; the ultra short forecast every half hour slot, 45 minutes past the hour.
+These follow KMA's own guide (기상청41_단기예보 조회서비스 오픈API활용가이드,
+October 2026). `KmaBaseTime` picks the newest published slot, in Korea Standard
+Time whatever the device time zone is. Pass `now` as an instant, such as
+`DateTime.now()` or a UTC time; a `DateTime` built from Korean wall-clock
+values on a device in another zone names a different instant.
 
 ```dart
 final base = KmaBaseTime.latest(KmaService.village);
@@ -159,6 +176,8 @@ for (final row in forecast.items) {
   print(switch (category) {
     'SKY' => '하늘: ${KmaSky.fromCode(value)?.label}',
     'PTY' => '강수: ${KmaPrecipitation.fromCode(value)?.label}',
+    // PCP and SNO arrive with their unit ("1mm 미만", "강수없음").
+    'PCP' || 'SNO' => '${kmaCategory(category)?.label}: $value',
     _ => '${kmaCategory(category)?.label ?? category}: '
         '$value${kmaCategory(category)?.unit ?? ''}',
   });
@@ -168,11 +187,13 @@ for (final row in forecast.items) {
 ## Limitations
 
 - Rows are flat maps. XML values come back as strings, and nested elements
-  inside an `<item>` are not expanded.
+  inside an `<item>` are not expanded: their text is joined.
+- Bodies are decoded in the declared charset when `dart:convert` knows it,
+  otherwise as UTF-8. EUC-KR is not supported.
 - A newly issued key can take time to activate, and the portal then answers
   `unauthorized_key`.
-- Services differ in parameter names and casing (`LAWD_CD`, `base_date`,
-  `pageNo` vs `page`), so pass what each service's document says.
+- Services differ in parameter names and casing (`LAWD_CD`, `base_date`), so
+  pass what each service's document says.
 - The portal counts requests per service per day; `paginate` uses one request
   per page.
 
@@ -190,3 +211,12 @@ FutureBuilder<DataGoKrResponse>(
   },
 )
 ```
+
+## Related packages
+
+Pure Dart clients from the same publisher:
+
+| Package | What it covers |
+| --- | --- |
+| [neis_plus](https://pub.dev/packages/neis_plus) | NEIS school data: schools, meals, timetables, academic calendars |
+| [rdap](https://pub.dev/packages/rdap) | Domain registration data, including Korean `.kr` and `.한국` names |

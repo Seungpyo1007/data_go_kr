@@ -26,6 +26,22 @@ jobs:
       - run: dart analyze --fatal-infos
       - run: dart test
 
+  time-zones:
+    name: Test (TZ ${{ matrix.tz }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # KST itself, a zone behind UTC, and zones far ahead of it.
+        tz: [Asia/Seoul, America/Los_Angeles, Pacific/Kiritimati, Pacific/Chatham]
+    env:
+      TZ: ${{ matrix.tz }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart test
+
   package:
     name: Package score
     runs-on: ubuntu-latest

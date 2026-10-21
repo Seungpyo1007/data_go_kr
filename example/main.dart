@@ -38,9 +38,11 @@ Future<void> main() async {
       final reading = switch (category) {
         'SKY' => '하늘상태: ${KmaSky.fromCode(value)?.label ?? value}',
         'PTY' => '강수형태: ${KmaPrecipitation.fromCode(value)?.label ?? value}',
+        // PCP and SNO already carry their unit, as in "1mm 미만" or
+        // "강수없음"; only plain numbers get one appended.
         _ =>
-          '${kmaCategory(category)?.label ?? category}: '
-              '$value${kmaCategory(category)?.unit ?? ''}',
+          '${kmaCategory(category)?.label ?? category}: $value'
+              '${double.tryParse(value) == null ? '' : kmaCategory(category)?.unit ?? ''}',
       };
       print('  ${row['fcstTime']}  $reading');
     }

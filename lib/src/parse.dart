@@ -8,9 +8,15 @@ import 'response.dart';
 ///
 /// Decoded keys contain `+`, `/`, and `=`, which change meaning inside a query
 /// string and are the usual cause of `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`. A
-/// key that is already percent-encoded is passed through unchanged.
-String encodeServiceKey(String key) =>
-    RegExp(r'%[0-9A-Fa-f]{2}').hasMatch(key) ? key : Uri.encodeComponent(key);
+/// key that is already percent-encoded is passed through unchanged. Spaces and
+/// line breaks around the key, common when it is read from a file or an
+/// environment variable, are removed.
+String encodeServiceKey(String key) {
+  final trimmed = key.trim();
+  return RegExp(r'%[0-9A-Fa-f]{2}').hasMatch(trimmed)
+      ? trimmed
+      : Uri.encodeComponent(trimmed);
+}
 
 /// Parses a response body in either JSON or XML.
 ///
@@ -24,25 +30,26 @@ DataGoKrResponse parseBody(String body, {int? statusCode}) {
     return _parseJson(text, body, statusCode);
   }
   if (text.startsWith('<')) return _parseXml(text, body, statusCode);
-  throw DataGoKrException(
-    'The service returned neither JSON nor XML'
-    '${statusCode == null ? '' : ' (HTTP $statusCode)'}.',
-    code: 'invalid_response',
-    statusCode: statusCode,
-  );
+  throw _unreadable('neither JSON nor XML', statusCode);
 }
+
+/// A body this package cannot read. A failing HTTP status, when there is one,
+/// says more than the body: a gateway's plain `Unauthorized` is still a key
+/// problem.
+DataGoKrException _unreadable(String what, int? statusCode) =>
+    DataGoKrException(
+      'The service returned $what'
+      '${statusCode == null ? '' : ' (HTTP $statusCode)'}.',
+      code: errorCodeForStatus(statusCode) ?? 'invalid_response',
+      statusCode: statusCode,
+    );
 
 DataGoKrResponse _parseXml(String text, String body, int? statusCode) {
   final XmlDocument document;
   try {
     document = XmlDocument.parse(text);
   } on XmlException {
-    throw DataGoKrException(
-      'The service returned malformed XML'
-      '${statusCode == null ? '' : ' (HTTP $statusCode)'}.',
-      code: 'invalid_response',
-      statusCode: statusCode,
-    );
+    throw _unreadable('malformed XML', statusCode);
   }
   final root = document.rootElement;
 
@@ -50,17 +57,12 @@ DataGoKrResponse _parseXml(String text, String body, int? statusCode) {
   if (root.name.local == 'OpenAPI_ServiceResponse') {
     _throwPortalError(
       _xmlText(root, 'returnReasonCode'),
-      _xmlText(root, 'errMsg') ?? _xmlText(root, 'returnAuthMsg'),
+      _portalMessage(_xmlText(root, 'errMsg'), _xmlText(root, 'returnAuthMsg')),
       statusCode,
     );
   }
-  if (root.name.local == 'html' || root.name.local == 'HTML') {
-    throw DataGoKrException(
-      'The service returned an HTML page'
-      '${statusCode == null ? '' : ' (HTTP $statusCode)'}.',
-      code: 'invalid_response',
-      statusCode: statusCode,
-    );
+  if (root.name.local.toLowerCase() == 'html') {
+    throw _unreadable('an HTML page', statusCode);
   }
 
   final resultCode = _xmlText(root, 'resultCode');
@@ -77,7 +79,7 @@ DataGoKrResponse _parseXml(String text, String body, int? statusCode) {
   }
 
   return DataGoKrResponse(
-    items: [for (final item in root.findAllElements('item')) _xmlItem(item)],
+    items: [for (final item in _xmlRows(root)) _xmlItem(item)],
     totalCount: _toInt(_xmlText(root, 'totalCount')),
     pageNo: _toInt(_xmlText(root, 'pageNo')),
     numOfRows: _toInt(_xmlText(root, 'numOfRows')),
@@ -92,19 +94,10 @@ DataGoKrResponse _parseJson(String text, String body, int? statusCode) {
   try {
     json = jsonDecode(text);
   } on FormatException {
-    throw DataGoKrException(
-      'The service returned malformed JSON'
-      '${statusCode == null ? '' : ' (HTTP $statusCode)'}.',
-      code: 'invalid_response',
-      statusCode: statusCode,
-    );
+    throw _unreadable('malformed JSON', statusCode);
   }
   if (json is! Map<String, Object?>) {
-    throw DataGoKrException(
-      'The service returned a JSON value that is not an object.',
-      code: 'invalid_response',
-      statusCode: statusCode,
-    );
+    throw _unreadable('a JSON value that is not an object', statusCode);
   }
 
   // Authentication and quota failures use their own envelope.
@@ -114,7 +107,10 @@ DataGoKrResponse _parseJson(String text, String body, int? statusCode) {
     final fields = header is Map ? header : envelope;
     _throwPortalError(
       _string(fields['returnReasonCode']),
-      _string(fields['errMsg']) ?? _string(fields['returnAuthMsg']),
+      _portalMessage(
+        _string(fields['errMsg']),
+        _string(fields['returnAuthMsg']),
+      ),
       statusCode,
     );
   }
@@ -136,13 +132,13 @@ DataGoKrResponse _parseJson(String text, String body, int? statusCode) {
     );
   }
 
-  final response = json['response'];
+  // Most services wrap header and body in "response"; some, such as several
+  // food and drug services, send them at the top level.
+  final response =
+      json['response'] ??
+      (json['header'] is Map || json['body'] is Map ? json : null);
   if (response is! Map) {
-    throw DataGoKrException(
-      'The service returned JSON without a response envelope.',
-      code: 'invalid_response',
-      statusCode: statusCode,
-    );
+    throw _unreadable('JSON without a response envelope', statusCode);
   }
   final header = response['header'];
   final resultCode = header is Map ? _string(header['resultCode']) : null;
@@ -190,10 +186,33 @@ Map<String, Object?> _jsonItem(Map<Object?, Object?> item) => <String, Object?>{
   for (final entry in item.entries) '${entry.key}': entry.value,
 };
 
+/// The `<item>` rows of a page: the children of `<items>`, so an element
+/// named `item` inside a row is not mistaken for another row.
+Iterable<XmlElement> _xmlRows(XmlElement root) {
+  final items = _outsideRows(root, 'items').firstOrNull;
+  return items == null
+      ? _outsideRows(root, 'item')
+      : items.childElements.where((element) => element.name.local == 'item');
+}
+
 Map<String, Object?> _xmlItem(XmlElement item) => <String, Object?>{
   for (final field in item.childElements)
     field.name.local: field.innerText.trim(),
 };
+
+/// The message of a portal error envelope. Current gateways put the reason
+/// in `errMsg` and a Korean description in `returnAuthMsg`; older ones put a
+/// bare `SERVICE ERROR` in `errMsg` and the reason in `returnAuthMsg`. The
+/// specific one comes first, the other follows in parentheses.
+String? _portalMessage(String? errMsg, String? returnAuthMsg) {
+  final generic = errMsg == null || errMsg.toUpperCase() == 'SERVICE ERROR';
+  final primary = generic ? returnAuthMsg ?? errMsg : errMsg;
+  final secondary = generic ? errMsg : returnAuthMsg;
+  if (primary == null) return secondary;
+  return secondary == null || secondary == primary
+      ? primary
+      : '$primary ($secondary)';
+}
 
 Never _throwPortalError(String? reasonCode, String? message, int? statusCode) {
   final reason = (reasonCode ?? '').trim();
@@ -220,8 +239,18 @@ String? _string(Object? value) {
   return text.isEmpty ? null : text;
 }
 
+/// Text of the first [name] element that is not inside a row, so a row field
+/// called `resultCode` or `totalCount` is not read as the page's.
 String? _xmlText(XmlElement root, String name) =>
-    root.findAllElements(name).firstOrNull?.innerText.trim();
+    _outsideRows(root, name).firstOrNull?.innerText.trim();
+
+Iterable<XmlElement> _outsideRows(XmlElement root, String name) => root
+    .findAllElements(name)
+    .where(
+      (element) => !element.ancestorElements.any(
+        (ancestor) => ancestor.name.local == 'item',
+      ),
+    );
 
 int? _toInt(Object? value) =>
     value is int ? value : int.tryParse('${value ?? ''}'.trim());

@@ -1,3 +1,35 @@
+## 0.0.3
+
+* Fix `paginate` repeating the first page on `api.odcloud.kr`, which pages with
+  `page` and `perPage`. Requests to that host now use those names, and no
+  longer get `dataType`.
+* Fix `paginate` reading one page over and over when `query` sets `pageNo`;
+  paging parameters in `query` are replaced, and a `numOfRows` there is used
+  as the page size. A paging parameter set to `null` gets its default.
+* Error messages now carry the portal's reason and description, for example
+  `SERVICE_KEY_IS_NOT_REGISTERED_ERROR (등록되지 않은 서비스키)`, and older
+  gateways that answer `SERVICE ERROR` report the reason instead.
+* Fix the HTTP status being ignored for unreadable bodies: 401 and 403 are
+  `unauthorized_key`, 429 `rate_limit`, and other failures, such as a 503 HTML
+  page, `http_error`.
+* Map more reason codes: `21` (suspended key) and odcloud `-401` (missing key)
+  to `unauthorized_key`, odcloud `-3` to `unknown_service`, `05` to `timeout`,
+  and `04` to `http_error`.
+* Read JSON that sends `header` and `body` without a `response` wrapper.
+* Fix XML rows: only the `<item>` children of `<items>` are rows, and page
+  fields such as `totalCount` are no longer read from inside a row.
+* Fix TLS errors such as `HandshakeException` escaping as themselves; every
+  failure is now a `DataGoKrException`.
+* Trim spaces and line breaks around the service key, and throw an
+  `ArgumentError` when the endpoint or `query` carries a `serviceKey` too.
+* Keep `returnType` instead of adding `dataType`, and decode bodies in their
+  declared charset when `dart:convert` supports it.
+* `KmaBaseTime.latest` returns the nowcast ten minutes past the hour instead
+  of 40, following KMA's October 2026 guide.
+* Fix the README and example appending `mm` to precipitation values that
+  already include it, such as `1mm 미만`. Correct the browser (CORS) notes and
+  the install version, and link related packages.
+
 ## 0.0.2
 
 * Add `KmaBaseTime.latest`, which returns the newest `base_date` and

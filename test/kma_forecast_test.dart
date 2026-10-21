@@ -40,27 +40,74 @@ void main() {
       );
     });
 
-    test('nowcast waits 40 minutes past the hour', () {
+    test('nowcast waits ten minutes past the hour', () {
       expect(
         KmaBaseTime.latest(
           KmaService.ultraShortNowcast,
-          now: kst(2026, 9, 16, 10, 39),
+          now: kst(2026, 9, 16, 10, 9),
         ),
         const KmaBaseTime('20260916', '0900'),
       );
       expect(
         KmaBaseTime.latest(
           KmaService.ultraShortNowcast,
-          now: kst(2026, 9, 16, 10, 40),
+          now: kst(2026, 9, 16, 10, 10),
         ),
         const KmaBaseTime('20260916', '1000'),
       );
       expect(
         KmaBaseTime.latest(
           KmaService.ultraShortNowcast,
-          now: kst(2026, 9, 16, 0, 10),
+          now: kst(2026, 9, 16, 0, 9),
         ),
         const KmaBaseTime('20260915', '2300'),
+      );
+    });
+
+    test('hourly services cross midnight, month, and year ends', () {
+      KmaBaseTime at(KmaService service, DateTime now) =>
+          KmaBaseTime.latest(service, now: now);
+
+      expect(
+        at(KmaService.ultraShortForecast, kst(2026, 9, 16, 0, 44)),
+        const KmaBaseTime('20260915', '2330'),
+      );
+      expect(
+        at(KmaService.ultraShortForecast, kst(2026, 9, 16, 0, 45)),
+        const KmaBaseTime('20260916', '0030'),
+      );
+      expect(
+        at(KmaService.ultraShortNowcast, kst(2026, 10, 1, 0, 5)),
+        const KmaBaseTime('20260930', '2300'),
+      );
+      expect(
+        at(KmaService.ultraShortForecast, kst(2027, 1, 1, 0, 30)),
+        const KmaBaseTime('20261231', '2330'),
+      );
+    });
+
+    test('falls back across a leap day', () {
+      expect(
+        KmaBaseTime.latest(KmaService.village, now: kst(2028, 3, 1, 1, 0)),
+        const KmaBaseTime('20280229', '2300'),
+      );
+      expect(
+        KmaBaseTime.latest(
+          KmaService.ultraShortNowcast,
+          now: kst(2028, 3, 1, 0, 0),
+        ),
+        const KmaBaseTime('20280229', '2300'),
+      );
+      expect(
+        KmaBaseTime.latest(KmaService.village, now: kst(2027, 3, 1, 1, 0)),
+        const KmaBaseTime('20270228', '2300'),
+      );
+    });
+
+    test('village forecast publishes 02:00 at exactly 02:10', () {
+      expect(
+        KmaBaseTime.latest(KmaService.village, now: kst(2026, 9, 16, 2, 10)),
+        const KmaBaseTime('20260916', '0200'),
       );
     });
 
@@ -88,10 +135,18 @@ void main() {
         KmaBaseTime.latest(KmaService.ultraShortForecast, now: utc),
         const KmaBaseTime('20260916', '0930'),
       );
-      // The same instant written in another zone gives the same answer.
-      final elsewhere = utc.add(const Duration(hours: 0)).toLocal();
+      // The same instant as a local time of this machine gives the same
+      // answer; CI runs these tests in several time zones.
       expect(
-        KmaBaseTime.latest(KmaService.ultraShortForecast, now: elsewhere),
+        KmaBaseTime.latest(KmaService.ultraShortForecast, now: utc.toLocal()),
+        const KmaBaseTime('20260916', '0930'),
+      );
+      // So does the same instant written with another offset.
+      expect(
+        KmaBaseTime.latest(
+          KmaService.ultraShortForecast,
+          now: DateTime.parse('2026-09-15T15:00:00-10:00'),
+        ),
         const KmaBaseTime('20260916', '0930'),
       );
     });
